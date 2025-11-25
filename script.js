@@ -48,60 +48,7 @@ function createAirplaneIcon(heading) {
     });
 }
 
-// Fetch route information from AviationStack API (free tier)
-async function fetchRouteFromAPI(icao24) {
-    try {
-        // Using OpenSky Network's route endpoint via CORS proxy
-        const url = `https://corsproxy.io/?https://opensky-network.org/api/routes?callsign=${icao24}`;
-        const response = await fetch(url, { timeout: 5000 });
-        
-        if (!response.ok) return null;
-        
-        const data = await response.json();
-        if (data && data.route && data.route.length >= 2) {
-            return {
-                departure: data.route[0],
-                destination: data.route[data.route.length - 1]
-            };
-        }
-    } catch (error) {
-        console.log('Could not fetch route for', icao24);
-    }
-    return null;
-}
 
-// Get route info with caching and batching
-async function enrichFlightWithRoute(flight) {
-    const callsign = (flight.flight || '').trim();
-    if (!callsign || callsign === '') return flight;
-    
-    // Check cache
-    if (flightRoutes[callsign]) {
-        flight.departure = flightRoutes[callsign].departure;
-        flight.destination = flightRoutes[callsign].destination;
-        return flight;
-    }
-    
-    // Try to fetch route (but don't block the UI)
-    fetchRouteFromAPI(callsign).then(route => {
-        if (route) {
-            flightRoutes[callsign] = route;
-            // Update the flight data if it's still visible
-            if (markers[flight.hex]) {
-                flight.departure = route.departure;
-                flight.destination = route.destination;
-                markers[flight.hex].getPopup().setContent(createPopupContent(flight));
-            }
-        } else {
-            flightRoutes[callsign] = { departure: 'N/A', destination: 'N/A' };
-        }
-    });
-    
-    // Return flight with pending status
-    flight.departure = 'Loading...';
-    flight.destination = 'Loading...';
-    return flight;
-}
 
 // Format flight data for popup
 function createPopupContent(flight) {
@@ -113,9 +60,9 @@ function createPopupContent(flight) {
     const registration = flight.r || 'N/A';
     const aircraftType = flight.t || 'N/A';
     
-    // Get route info from flight data (if available)
-    const departure = flight.departure || 'N/A';
-    const destination = flight.destination || 'N/A';
+    // Route info - to be implemented with proper API
+    const departure = 'N/A';
+    const destination = 'N/A';
     
     return `
         <div class="popup-title">${callsign.trim()}</div>
@@ -179,12 +126,7 @@ async function fetchFlights() {
         console.log('Number of aircraft:', data.ac ? data.ac.length : 0);
         
         // API v2 uses 'ac' instead of 'aircraft'
-        const flights = data.ac || [];
-        
-        // Enrich flights with route data (async, non-blocking)
-        flights.forEach(flight => enrichFlightWithRoute(flight));
-        
-        return flights;
+        return data.ac || [];
     } catch (error) {
         console.error('Error fetching flight data:', error);
         updateFlightCount('Error loading flights');
