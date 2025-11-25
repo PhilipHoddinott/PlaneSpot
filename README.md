@@ -4,7 +4,7 @@ A real-time flight tracking web application that displays live aircraft position
 
 ## 🌐 Live Demo
 
-**[View Live Site](https://philip.github.io/PlaneSpot/)** *(Update this URL after deploying)*
+**[View Live Site](https://philiphoddinott.github.io/PlaneSpot/)**
 
 ## 📖 About
 
@@ -48,7 +48,7 @@ The API returns aircraft data including position, altitude, speed, heading, and 
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/PlaneSpot.git
+   git clone https://github.com/PhilipHoddinott/PlaneSpot.git
    cd PlaneSpot
    ```
 
