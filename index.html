@@ -21,9 +21,17 @@
         </header>
         
         <div class="controls">
-            <button id="refresh-btn" class="btn">🔄 Refresh Flights</button>
-            <span id="flight-count" class="flight-count">Loading flights...</span>
-            <span id="last-update" class="last-update"></span>
+            <div class="control-group">
+                <button id="refresh-btn" class="btn">🔄 Refresh Flights</button>
+                <div class="search-container">
+                    <input type="text" id="search-input" class="search-input" placeholder="Search flights... (e.g., Des:DCA or Dep:SFO)">
+                    <button id="clear-search" class="btn-clear">✕</button>
+                </div>
+            </div>
+            <div class="info-group">
+                <span id="flight-count" class="flight-count">Loading flights...</span>
+                <span id="last-update" class="last-update"></span>
+            </div>
         </div>
         
         <div id="map"></div>

@@ -14,6 +14,9 @@ const CONFIG = {
 let map;
 let markers = {};
 let autoRefreshInterval;
+let flightRoutes = {}; // Cache for flight routes
+let allFlights = []; // Store all flights for filtering
+let searchFilter = ''; // Current search filter
 
 // Initialize the map
 function initMap() {
@@ -45,6 +48,61 @@ function createAirplaneIcon(heading) {
     });
 }
 
+// Fetch route information from AviationStack API (free tier)
+async function fetchRouteFromAPI(icao24) {
+    try {
+        // Using OpenSky Network's route endpoint via CORS proxy
+        const url = `https://corsproxy.io/?https://opensky-network.org/api/routes?callsign=${icao24}`;
+        const response = await fetch(url, { timeout: 5000 });
+        
+        if (!response.ok) return null;
+        
+        const data = await response.json();
+        if (data && data.route && data.route.length >= 2) {
+            return {
+                departure: data.route[0],
+                destination: data.route[data.route.length - 1]
+            };
+        }
+    } catch (error) {
+        console.log('Could not fetch route for', icao24);
+    }
+    return null;
+}
+
+// Get route info with caching and batching
+async function enrichFlightWithRoute(flight) {
+    const callsign = (flight.flight || '').trim();
+    if (!callsign || callsign === '') return flight;
+    
+    // Check cache
+    if (flightRoutes[callsign]) {
+        flight.departure = flightRoutes[callsign].departure;
+        flight.destination = flightRoutes[callsign].destination;
+        return flight;
+    }
+    
+    // Try to fetch route (but don't block the UI)
+    fetchRouteFromAPI(callsign).then(route => {
+        if (route) {
+            flightRoutes[callsign] = route;
+            // Update the flight data if it's still visible
+            if (markers[flight.hex]) {
+                flight.departure = route.departure;
+                flight.destination = route.destination;
+                markers[flight.hex].getPopup().setContent(createPopupContent(flight));
+            }
+        } else {
+            flightRoutes[callsign] = { departure: 'N/A', destination: 'N/A' };
+        }
+    });
+    
+    // Return flight with pending status
+    flight.departure = 'Loading...';
+    flight.destination = 'Loading...';
+    return flight;
+}
+
 // Format flight data for popup
 function createPopupContent(flight) {
     const callsign = flight.flight || flight.hex || 'Unknown';
@@ -55,9 +113,21 @@ function createPopupContent(flight) {
     const registration = flight.r || 'N/A';
     const aircraftType = flight.t || 'N/A';
     
+    // Get route info from flight data (if available)
+    const departure = flight.departure || 'N/A';
+    const destination = flight.destination || 'N/A';
+    
     return `
         <div class="popup-title">${callsign.trim()}</div>
         <div class="popup-info">
+            <div class="popup-row">
+                <span class="popup-label">Departure:</span>
+                <span class="popup-value">${departure}</span>
+            </div>
+            <div class="popup-row">
+                <span class="popup-label">Destination:</span>
+                <span class="popup-value">${destination}</span>
+            </div>
             <div class="popup-row">
                 <span class="popup-label">Hex:</span>
                 <span class="popup-value">${flight.hex}</span>
@@ -109,7 +179,12 @@ async function fetchFlights() {
         console.log('Number of aircraft:', data.ac ? data.ac.length : 0);
         
         // API v2 uses 'ac' instead of 'aircraft'
-        return data.ac || [];
+        const flights = data.ac || [];
+        
+        // Enrich flights with route data (async, non-blocking)
+        flights.forEach(flight => enrichFlightWithRoute(flight));
+        
+        return flights;
     } catch (error) {
         console.error('Error fetching flight data:', error);
         updateFlightCount('Error loading flights');
@@ -117,13 +192,44 @@ async function fetchFlights() {
     }
 }
 
+// Filter flights based on search query
+function filterFlights(flights, searchQuery) {
+    if (!searchQuery) return flights;
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Check for specific filter formats
+    if (query.startsWith('des:')) {
+        const airport = query.substring(4).toUpperCase();
+        return flights.filter(f => f.destination === airport);
+    }
+    
+    if (query.startsWith('dep:')) {
+        const airport = query.substring(4).toUpperCase();
+        return flights.filter(f => f.departure === airport);
+    }
+    
+    // General search - match callsign, registration, or hex
+    return flights.filter(f => {
+        const callsign = (f.flight || '').toLowerCase();
+        const registration = (f.r || '').toLowerCase();
+        const hex = (f.hex || '').toLowerCase();
+        return callsign.includes(query) || registration.includes(query) || hex.includes(query);
+    });
+}
+
 // Update or create markers for flights
 function updateMarkers(flights) {
     console.log('updateMarkers called with', flights.length, 'flights');
+    
+    // Apply search filter
+    const filteredFlights = filterFlights(flights, searchFilter);
+    console.log('After filtering:', filteredFlights.length, 'flights');
+    
     const currentHexCodes = new Set();
     
     let skippedCount = 0;
-    flights.forEach(flight => {
+    filteredFlights.forEach(flight => {
         // Skip flights without position data
         if (!flight.lat || !flight.lon) {
             skippedCount++;
@@ -163,7 +269,10 @@ function updateMarkers(flights) {
     console.log('Total markers on map:', Object.keys(markers).length);
     
     // Update flight count
-    updateFlightCount(`${flights.length} flights tracked`);
+    const displayCount = searchFilter ? 
+        `${Object.keys(markers).length} of ${flights.length} flights` : 
+        `${flights.length} flights tracked`;
+    updateFlightCount(displayCount);
     updateLastUpdateTime();
 }
 
@@ -187,7 +296,14 @@ async function updateFlights() {
     countElement.classList.add('loading');
     
     const flights = await fetchFlights();
+    allFlights = flights; // Store for filtering
     updateMarkers(flights);
+}
+
+// Handle search input
+function handleSearch(query) {
+    searchFilter = query;
+    updateMarkers(allFlights);
 }
 
 // Start auto-refresh
@@ -212,6 +328,23 @@ document.getElementById('refresh-btn').addEventListener('click', () => {
     // Reset the auto-refresh timer
     startAutoRefresh();
 });
+
+// Search functionality
+const searchInput = document.getElementById('search-input');
+if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+        handleSearch(e.target.value);
+    });
+    
+    // Clear search
+    const clearBtn = document.getElementById('clear-search');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            handleSearch('');
+        });
+    }
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
