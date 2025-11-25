@@ -17,6 +17,9 @@ let autoRefreshInterval;
 let flightRoutes = {}; // Cache for flight routes
 let allFlights = []; // Store all flights for filtering
 let searchFilter = ''; // Current search filter
+let flightPaths = {}; // Store historical positions for each flight
+let pathLines = {}; // Store polyline objects for flight paths
+const MAX_PATH_POINTS = 50; // Maximum number of historical points to store
 
 // Initialize the map
 function initMap() {
@@ -48,6 +51,94 @@ function createAirplaneIcon(heading) {
     });
 }
 
+// Store flight path history
+function updateFlightPath(flight) {
+    if (!flight.lat || !flight.lon) return;
+    
+    const hex = flight.hex;
+    
+    // Initialize path array if it doesn't exist
+    if (!flightPaths[hex]) {
+        flightPaths[hex] = [];
+    }
+    
+    // Add current position with timestamp
+    const position = {
+        lat: flight.lat,
+        lon: flight.lon,
+        timestamp: Date.now(),
+        altitude: flight.alt_baro
+    };
+    
+    // Check if position has changed (avoid duplicates)
+    const lastPos = flightPaths[hex][flightPaths[hex].length - 1];
+    if (!lastPos || lastPos.lat !== position.lat || lastPos.lon !== position.lon) {
+        flightPaths[hex].push(position);
+        
+        // Keep only last MAX_PATH_POINTS positions
+        if (flightPaths[hex].length > MAX_PATH_POINTS) {
+            flightPaths[hex].shift();
+        }
+    }
+}
+
+// Toggle flight path display
+function toggleFlightPath(hex, flight) {
+    // If path is already shown, hide it
+    if (pathLines[hex]) {
+        map.removeLayer(pathLines[hex]);
+        delete pathLines[hex];
+        return;
+    }
+    
+    // Get historical positions
+    const positions = flightPaths[hex];
+    if (!positions || positions.length < 2) {
+        console.log('Not enough position data for path');
+        return;
+    }
+    
+    // Create coordinates array for polyline
+    const coords = positions.map(pos => [pos.lat, pos.lon]);
+    
+    // Create polyline with gradient effect (older = more transparent)
+    const polyline = L.polyline(coords, {
+        color: '#667eea',
+        weight: 3,
+        opacity: 0.7,
+        smoothFactor: 1
+    }).addTo(map);
+    
+    // Add decorators (arrows) to show direction
+    const decorator = L.polylineDecorator(polyline, {
+        patterns: [
+            {
+                offset: '100%',
+                repeat: 0,
+                symbol: L.Symbol.arrowHead({
+                    pixelSize: 12,
+                    polygon: false,
+                    pathOptions: {
+                        stroke: true,
+                        weight: 2,
+                        color: '#667eea'
+                    }
+                })
+            }
+        ]
+    });
+    
+    // Store both polyline and decorator
+    pathLines[hex] = L.layerGroup([polyline, decorator]).addTo(map);
+    
+    // Add path info to popup
+    const pathInfo = `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+        <small style="color: #667eea;">📍 Path: ${positions.length} positions tracked</small>
+    </div>`;
+    
+    return pathInfo;
+}
+
 
 
 // Format flight data for popup
@@ -63,6 +154,12 @@ function createPopupContent(flight) {
     // Route info - to be implemented with proper API
     const departure = 'N/A';
     const destination = 'N/A';
+    
+    const pathCount = flightPaths[flight.hex] ? flightPaths[flight.hex].length : 0;
+    const pathHint = pathCount >= 2 ? 
+        `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; text-align: center;">
+            <small style="color: #667eea;">💡 Click marker again to toggle flight path (${pathCount} positions)</small>
+        </div>` : '';
     
     return `
         <div class="popup-title">${callsign.trim()}</div>
@@ -104,6 +201,7 @@ function createPopupContent(flight) {
                 <span class="popup-value">${squawk}</span>
             </div>
         </div>
+        ${pathHint}
     `;
 }
 
@@ -185,6 +283,9 @@ function updateMarkers(flights) {
         const icon = createAirplaneIcon(flight.track);
         const popupContent = createPopupContent(flight);
         
+        // Update flight path history
+        updateFlightPath(flight);
+        
         if (markers[hex]) {
             // Update existing marker
             markers[hex].setLatLng(position);
@@ -195,6 +296,12 @@ function updateMarkers(flights) {
             const marker = L.marker(position, { icon: icon })
                 .addTo(map)
                 .bindPopup(popupContent);
+            
+            // Add click handler to toggle flight path
+            marker.on('click', function() {
+                const pathInfo = toggleFlightPath(hex, flight);
+            });
+            
             markers[hex] = marker;
         }
     });
@@ -204,6 +311,17 @@ function updateMarkers(flights) {
         if (!currentHexCodes.has(hex)) {
             map.removeLayer(markers[hex]);
             delete markers[hex];
+            
+            // Also remove path line if it exists
+            if (pathLines[hex]) {
+                map.removeLayer(pathLines[hex]);
+                delete pathLines[hex];
+            }
+            
+            // Clean up old path data (keep for 5 minutes after disappearing)
+            setTimeout(() => {
+                delete flightPaths[hex];
+            }, 300000);
         }
     });
     
