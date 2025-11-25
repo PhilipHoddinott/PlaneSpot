@@ -5,7 +5,8 @@ const CONFIG = {
     mapZoom: 9,
     updateInterval: 10000, // 10 seconds
     // API v2 uses lat/lon/distance format (distance in nautical miles)
-    apiUrl: 'https://api.adsb.lol/v2',
+    // Using CORS proxy to bypass CORS restrictions
+    apiUrl: 'https://corsproxy.io/?https://api.adsb.lol/v2',
     searchRadius: 100 // nautical miles
 };
 
