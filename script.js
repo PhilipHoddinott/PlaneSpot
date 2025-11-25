@@ -94,12 +94,19 @@ async function fetchFlights() {
     const [lat, lon] = CONFIG.mapCenter;
     const url = `${CONFIG.apiUrl}/lat/${lat}/lon/${lon}/dist/${CONFIG.searchRadius}`;
     
+    console.log('Fetching flights from:', url);
+    
     try {
         const response = await fetch(url);
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        console.log('Data received:', data);
+        console.log('Number of aircraft:', data.ac ? data.ac.length : 0);
+        
         // API v2 uses 'ac' instead of 'aircraft'
         return data.ac || [];
     } catch (error) {
@@ -111,11 +118,14 @@ async function fetchFlights() {
 
 // Update or create markers for flights
 function updateMarkers(flights) {
+    console.log('updateMarkers called with', flights.length, 'flights');
     const currentHexCodes = new Set();
     
+    let skippedCount = 0;
     flights.forEach(flight => {
         // Skip flights without position data
         if (!flight.lat || !flight.lon) {
+            skippedCount++;
             return;
         }
         
@@ -147,6 +157,9 @@ function updateMarkers(flights) {
             delete markers[hex];
         }
     });
+    
+    console.log('Skipped', skippedCount, 'flights without position data');
+    console.log('Total markers on map:', Object.keys(markers).length);
     
     // Update flight count
     updateFlightCount(`${flights.length} flights tracked`);
