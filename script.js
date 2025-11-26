@@ -151,6 +151,11 @@ function createPopupContent(flight) {
     const registration = flight.r || 'N/A';
     const aircraftType = flight.t || 'N/A';
     
+    // Calculate last seen time
+    const lastSeen = flight.seen !== undefined ? 
+        (flight.seen < 60 ? `${Math.round(flight.seen)}s ago` : `${Math.round(flight.seen / 60)}m ago`) : 
+        'N/A';
+    
     // Route info - to be implemented with proper API
     const departure = 'N/A';
     const destination = 'N/A';
@@ -199,6 +204,10 @@ function createPopupContent(flight) {
             <div class="popup-row">
                 <span class="popup-label">Squawk:</span>
                 <span class="popup-value">${squawk}</span>
+            </div>
+            <div class="popup-row">
+                <span class="popup-label">Last Observed:</span>
+                <span class="popup-value">${lastSeen}</span>
             </div>
         </div>
         ${pathHint}
