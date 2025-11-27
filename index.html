@@ -31,9 +31,46 @@
                     <button id="clear-search" class="btn-clear">✕</button>
                 </div>
             </div>
+            <div class="control-group">
+                <button id="location-btn" class="btn">📍 Change Location</button>
+            </div>
             <div class="info-group">
                 <span id="flight-count" class="flight-count">Loading flights...</span>
                 <span id="last-update" class="last-update"></span>
+            </div>
+        </div>
+        
+        <!-- Location Modal -->
+        <div id="location-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📍 Set Tracking Location</h2>
+                    <button id="close-modal" class="btn-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label for="lat-input">Latitude:</label>
+                        <input type="number" id="lat-input" step="0.0001" placeholder="38.9072" class="modal-input">
+                    </div>
+                    <div class="input-group">
+                        <label for="lon-input">Longitude:</label>
+                        <input type="number" id="lon-input" step="0.0001" placeholder="-77.0369" class="modal-input">
+                    </div>
+                    <div class="input-group">
+                        <label for="radius-input">Radius (nautical miles):</label>
+                        <input type="number" id="radius-input" min="10" max="250" placeholder="100" class="modal-input">
+                    </div>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-lat="38.9072" data-lon="-77.0369" data-radius="100">📍 Washington D.C.</button>
+                        <button class="preset-btn" data-lat="40.7128" data-lon="-74.0060" data-radius="100">📍 New York City</button>
+                        <button class="preset-btn" data-lat="34.0522" data-lon="-118.2437" data-radius="100">📍 Los Angeles</button>
+                        <button class="preset-btn" data-lat="51.5074" data-lon="-0.1278" data-radius="100">📍 London</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="apply-location" class="btn btn-primary">Apply Location</button>
+                    <button id="cancel-modal" class="btn btn-secondary">Cancel</button>
+                </div>
             </div>
         </div>
         

@@ -411,11 +411,122 @@ function stopAutoRefresh() {
     }
 }
 
+// Update location and refresh
+function updateLocation(lat, lon, radius) {
+    CONFIG.mapCenter = [lat, lon];
+    CONFIG.searchRadius = radius;
+    
+    // Update map view
+    map.setView(CONFIG.mapCenter, CONFIG.mapZoom);
+    
+    // Remove old circle
+    map.eachLayer((layer) => {
+        if (layer instanceof L.Circle) {
+            map.removeLayer(layer);
+        }
+    });
+    
+    // Draw new circle
+    L.circle(CONFIG.mapCenter, {
+        color: '#667eea',
+        weight: 2,
+        fillOpacity: 0.05,
+        radius: CONFIG.searchRadius * 1852
+    }).addTo(map);
+    
+    // Clear all existing markers and paths
+    Object.keys(markers).forEach(hex => {
+        map.removeLayer(markers[hex]);
+        if (pathLines[hex]) {
+            map.removeLayer(pathLines[hex]);
+        }
+    });
+    markers = {};
+    pathLines = {};
+    flightPaths = {};
+    
+    // Fetch new flights
+    updateFlights();
+    startAutoRefresh();
+}
+
+// Modal functions
+function openLocationModal() {
+    const modal = document.getElementById('location-modal');
+    modal.classList.add('active');
+    
+    // Pre-fill current values
+    document.getElementById('lat-input').value = CONFIG.mapCenter[0];
+    document.getElementById('lon-input').value = CONFIG.mapCenter[1];
+    document.getElementById('radius-input').value = CONFIG.searchRadius;
+}
+
+function closeLocationModal() {
+    const modal = document.getElementById('location-modal');
+    modal.classList.remove('active');
+}
+
 // Event Listeners
 document.getElementById('refresh-btn').addEventListener('click', () => {
     updateFlights();
     // Reset the auto-refresh timer
     startAutoRefresh();
+});
+
+// Location button
+document.getElementById('location-btn').addEventListener('click', openLocationModal);
+
+// Modal controls
+document.getElementById('close-modal').addEventListener('click', closeLocationModal);
+document.getElementById('cancel-modal').addEventListener('click', closeLocationModal);
+
+document.getElementById('apply-location').addEventListener('click', () => {
+    const lat = parseFloat(document.getElementById('lat-input').value);
+    const lon = parseFloat(document.getElementById('lon-input').value);
+    const radius = parseInt(document.getElementById('radius-input').value);
+    
+    if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
+        alert('Please enter valid numbers for all fields');
+        return;
+    }
+    
+    if (lat < -90 || lat > 90) {
+        alert('Latitude must be between -90 and 90');
+        return;
+    }
+    
+    if (lon < -180 || lon > 180) {
+        alert('Longitude must be between -180 and 180');
+        return;
+    }
+    
+    if (radius < 10 || radius > 250) {
+        alert('Radius must be between 10 and 250 nautical miles');
+        return;
+    }
+    
+    updateLocation(lat, lon, radius);
+    closeLocationModal();
+});
+
+// Preset buttons
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const lat = parseFloat(btn.dataset.lat);
+        const lon = parseFloat(btn.dataset.lon);
+        const radius = parseInt(btn.dataset.radius);
+        
+        document.getElementById('lat-input').value = lat;
+        document.getElementById('lon-input').value = lon;
+        document.getElementById('radius-input').value = radius;
+    });
+});
+
+// Close modal on outside click
+document.getElementById('location-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'location-modal') {
+        closeLocationModal();
+    }
 });
 
 // Search functionality
