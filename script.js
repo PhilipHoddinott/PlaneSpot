@@ -41,13 +41,33 @@ function initMap() {
 }
 
 // Create custom airplane icon
-function createAirplaneIcon(heading) {
+function createAirplaneIcon(heading, speed, aircraftType) {
     const rotation = heading || 0;
+    const isOnGround = speed !== undefined && speed < 20;
+    
+    // Determine if it's a helicopter based on aircraft type
+    const helicopterTypes = ['H25B', 'H60', 'EC35', 'EC45', 'HELI', 'B06', 'B407', 'B429', 'AS50', 'AS65', 'EC30', 'S76'];
+    const isHelicopter = aircraftType && helicopterTypes.some(type => aircraftType.includes(type));
+    
+    // Choose emoji based on type and status
+    let emoji = '✈️';
+    let fontSize = '24px';
+    let style = '';
+    
+    if (isHelicopter) {
+        emoji = '🚁';
+    }
+    
+    if (isOnGround) {
+        fontSize = '20px';
+        style = `filter: grayscale(50%) brightness(0.7); text-shadow: 0 0 3px rgba(0,0,0,0.8);`;
+    }
+    
     return L.divIcon({
-        html: `<div style="transform: rotate(${rotation}deg); font-size: 24px;">✈️</div>`,
+        html: `<div style="transform: rotate(${rotation}deg); font-size: ${fontSize}; ${style}">${emoji}</div>`,
         className: 'airplane-icon',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
+        iconSize: isOnGround ? [20, 20] : [24, 24],
+        iconAnchor: isOnGround ? [10, 10] : [12, 12]
     });
 }
 
@@ -289,7 +309,7 @@ function updateMarkers(flights) {
         currentHexCodes.add(hex);
         
         const position = [flight.lat, flight.lon];
-        const icon = createAirplaneIcon(flight.track);
+        const icon = createAirplaneIcon(flight.track, flight.gs, flight.t);
         const popupContent = createPopupContent(flight);
         
         // Update flight path history
